@@ -1,0 +1,162 @@
+ALTIMETER REST API - COMMAND REFERENCE
+======================================
+
+Base URL:  http://altimeter.local
+Fallback:  http://<board-ip>   (e.g. http://192.168.1.50)
+
+If mDNS (altimeter.local) doesn't resolve on your device, use the IP address.
+Reserving a fixed IP for the board in your router makes that reliable.
+
+
+ENDPOINTS
+---------
+GET   /api/v1/altitude     Full reading (JSON)
+GET   /api/v1/status       Wi-Fi / sensor / uptime info (JSON)
+GET   /api/v1/sealevel     Current sea-level pressure in hPa
+PUT   /api/v1/sealevel     Set sea-level pressure (900-1100 hPa)
+POST  /api/v1/calibrate    Calibrate to a known elevation (m or ft)
+
+Legacy routes (used by the built-in web page):
+GET   /data                Same as /api/v1/altitude
+GET   /sl?hpa=1013.2       Set sea-level pressure
+GET   /cal?m=123           Calibrate to elevation in meters
+
+
+READ COMMANDS (curl)
+--------------------
+curl http://altimeter.local/api/v1/altitude
+curl http://altimeter.local/api/v1/status
+curl http://altimeter.local/api/v1/sealevel
+
+Pretty-printed (requires jq):
+curl -s http://altimeter.local/api/v1/altitude | jq
+
+
+WRITE COMMANDS (curl)
+---------------------
+Set sea-level pressure (JSON body):
+curl -X PUT -H "Content-Type: application/json" -d '{"hpa":1013.2}' http://altimeter.local/api/v1/sealevel
+
+Set sea-level pressure (form data):
+curl -X PUT -d "hpa=1013.2" http://altimeter.local/api/v1/sealevel
+
+Set sea-level pressure (query string):
+curl -X PUT "http://altimeter.local/api/v1/sealevel?hpa=1013.2"
+
+Calibrate to a known elevation in feet:
+curl -X POST -d "ft=400" http://altimeter.local/api/v1/calibrate
+
+Calibrate to a known elevation in meters:
+curl -X POST -d "m=122" http://altimeter.local/api/v1/calibrate
+
+Calibrate (JSON body):
+curl -X POST -H "Content-Type: application/json" -d '{"ft":400}' http://altimeter.local/api/v1/calibrate
+
+
+WITH AN API KEY
+---------------
+Only needed if API_KEY is set in the sketch. Applies to the write endpoints
+(PUT /api/v1/sealevel and POST /api/v1/calibrate).
+
+curl -X PUT -H "X-API-Key: yourSecret" -H "Content-Type: application/json" -d '{"hpa":1013.2}' http://altimeter.local/api/v1/sealevel
+curl -X POST -H "X-API-Key: yourSecret" -d "ft=400" http://altimeter.local/api/v1/calibrate
+
+
+EXAMPLE RESPONSES
+-----------------
+GET /api/v1/altitude
+{"m":123.45,"ft":405.0,"pressure":1000.12,"tc":21.30,"tf":70.34,"sl":1013.25,"age_ms":420,"uptime_s":3600,"time":1795430000}
+
+  m         altitude in meters
+  ft        altitude in feet
+  pressure  measured pressure in hPa
+  tc / tf   temperature in Celsius / Fahrenheit
+  sl        sea-level pressure currently in use (hPa)
+  age_ms    age of the cached sensor reading
+  uptime_s  seconds since the board booted
+  time      UTC epoch seconds, or null until NTP has synced
+
+GET /api/v1/status
+{"sensor_ok":true,"wifi_connected":true,"ssid":"MyNetwork","ip":"192.168.1.50","rssi":-58,"hostname":"altimeter","uptime_s":3600}
+
+GET /api/v1/sealevel  /  PUT /api/v1/sealevel
+{"hpa":1013.20}
+
+POST /api/v1/calibrate
+{"hpa":1012.87}      (the new sea-level pressure it calculated)
+
+Errors
+{"error":"hpa must be between 900 and 1100"}
+
+  400  bad or missing parameter
+  401  missing/wrong X-API-Key
+  404  unknown route
+  405  wrong HTTP method
+  503  sensor not found
+
+
+PYTHON (requests)
+-----------------
+import requests
+
+BASE = "http://altimeter.local"
+
+# Read
+d = requests.get(f"{BASE}/api/v1/altitude", timeout=3).json()
+print(d["ft"], "ft", d["tf"], "F", d["pressure"], "hPa")
+
+# Set sea-level pressure
+requests.put(f"{BASE}/api/v1/sealevel", json={"hpa": 1013.2}, timeout=3)
+
+# Calibrate to 400 ft
+requests.post(f"{BASE}/api/v1/calibrate", json={"ft": 400}, timeout=3)
+
+# With API key
+requests.post(f"{BASE}/api/v1/calibrate", json={"ft": 400},
+              headers={"X-API-Key": "yourSecret"}, timeout=3)
+
+
+JAVASCRIPT (browser or Node, fetch)
+-----------------------------------
+const BASE = "http://altimeter.local";
+
+const d = await (await fetch(`${BASE}/api/v1/altitude`)).json();
+console.log(d.ft, "ft");
+
+await fetch(`${BASE}/api/v1/sealevel`, {
+  method: "PUT",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ hpa: 1013.2 })
+});
+
+await fetch(`${BASE}/api/v1/calibrate`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ ft: 400 })
+});
+
+
+POWERSHELL (Windows)
+--------------------
+Invoke-RestMethod http://altimeter.local/api/v1/altitude
+
+Invoke-RestMethod -Method Put -ContentType "application/json" `
+  -Body '{"hpa":1013.2}' http://altimeter.local/api/v1/sealevel
+
+Invoke-RestMethod -Method Post -Body "ft=400" http://altimeter.local/api/v1/calibrate
+
+(In Windows PowerShell, use curl.exe instead of curl to run real curl.)
+
+
+POLLING LOOP (Linux / macOS shell)
+----------------------------------
+watch -n 1 'curl -s http://altimeter.local/api/v1/altitude'
+
+
+NOTES
+-----
+- Sensor readings are cached and refreshed once per second, so polling faster
+  than 1 Hz returns the same pressure/temperature values.
+- Sea-level pressure and calibration persist across reboots (stored in flash).
+- Valid sea-level range: 900-1100 hPa. Valid calibration elevation: -500 to 9000 m.
+- The API is plain HTTP. Keep it on a trusted home network.
