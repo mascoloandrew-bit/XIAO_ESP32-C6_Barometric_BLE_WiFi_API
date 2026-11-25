@@ -450,6 +450,13 @@ void setup() {
   delay(500);
   Wire.begin(22, 23);                               // SDA = D4, SCL = D5
 
+  pinMode(WIFI_ENABLE, OUTPUT);
+  digitalWrite(WIFI_ENABLE, LOW);
+  delay(100);
+
+  pinMode(WIFI_ANT_CONFIG, OUTPUT);
+  digitalWrite(WIFI_ANT_CONFIG, HIGH);
+
   prefs.begin("alt", false);
   seaLevelPa = prefs.getFloat("sl", 101325.0);
   wifiSsid   = prefs.getString("ssid", "");

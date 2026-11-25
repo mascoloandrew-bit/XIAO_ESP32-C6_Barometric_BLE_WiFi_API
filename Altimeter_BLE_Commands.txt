@@ -1,0 +1,78 @@
+XIAO ESP32-C6 ALTIMETER - BLE COMMAND REFERENCE
+================================================
+
+Connect with LightBlue (or nRF Connect) to the device named "AltimeterC6".
+Open the service whose UUID starts with 6E400001.
+
+When writing a value, set the format to "UTF-8 String" (or "Text"), NOT "Hex".
+Values are case-sensitive for the SSID and password. Commands are not.
+
+
+CHARACTERISTICS
+---------------
+
+6E400002   SSID        Write    Your Wi-Fi network name
+6E400003   Password    Write    Your Wi-Fi password
+6E400004   Command     Write    A command word (see below)
+6E400005   Status      Read     Current status text / IP address (tap Read to refresh)
+6E400006   Sea level   R/W      Sea-level pressure in hPa (accepted range 900 to 1100)
+
+
+COMMANDS (write to 6E400004)
+----------------------------
+
+connect    Join the router using the saved SSID and password.
+           Progress and the IP address appear in Status.
+
+forget     Clear the saved SSID and password and disconnect from Wi-Fi.
+           BLE stays on so you can enter new credentials.
+
+reboot     Restart the board. Saved credentials and sea-level
+           pressure are kept.
+
+
+STATUS MESSAGES (read from 6E400005)
+------------------------------------
+
+Waiting for Wi-Fi setup over BLE        No credentials saved yet
+Credentials saved                       SSID or password was written (not connected yet)
+Connecting to <network>...              Attempting to join (up to 15 seconds)
+Connected <ip address>                  Success, e.g. Connected 10.0.0.235
+Wi-Fi connect failed (check SSID/password)
+                                        Wrong credentials, or the network is 5 GHz only
+Wi-Fi disconnected, retrying...         Connection dropped; auto-reconnect in progress
+Wi-Fi credentials cleared               Result of the forget command
+No Wi-Fi credentials saved              connect was sent with nothing saved
+
+
+FIRST-TIME SETUP / CHANGING NETWORKS
+------------------------------------
+
+1. Write your network name to 6E400002.
+2. Write your password to 6E400003.
+3. Write   connect   to 6E400004.
+4. Wait about 15 seconds, then Read 6E400005.
+   You want:  Connected <ip address>
+5. On a phone on the same Wi-Fi, open  http://altimeter.local
+   or  http://<ip address>  in a browser.
+
+
+OPTIONAL: SET SEA-LEVEL PRESSURE OVER BLE
+-----------------------------------------
+
+Write a number such as   1013.2   to 6E400006.
+Values outside 900-1100 are ignored.
+(This can also be set from the web page, along with
+"Calibrate to known elevation" in feet.)
+
+
+TROUBLESHOOTING
+---------------
+
+- Status won't update: it does not refresh itself. Tap Read again.
+- Connect failed: re-enter SSID and password, then send connect again.
+  The board only works on 2.4 GHz networks.
+- altimeter.local won't load: use the IP address from Status instead.
+- Start over: write   forget   to 6E400004, then repeat first-time setup.
+- Serial Monitor (115200 baud) prints every status change and is
+  useful for checking that a command arrived.
